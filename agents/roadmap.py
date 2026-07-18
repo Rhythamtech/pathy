@@ -1,10 +1,13 @@
+import logging
 from agents.base import build_agent, response_content
 from agents.resources import select_topic_resource
+from utils.console import console
 from utils.models import (
     CourseCandidate,
     FinalRoadmap,
     RankedCourse,
     RoadmapWeek,
+    RoadmapWeekList,
     UserRequirement,
 )
 
@@ -14,9 +17,10 @@ def build_roadmap(
     selected_course: CourseCandidate,
     ranking: RankedCourse,
 ) -> FinalRoadmap:
+    logging.info("Starting build_roadmap for selected course: '%s'", selected_course.title)
     planner = build_agent(
         name="Roadmap Planning Agent",
-        output_schema=list[RoadmapWeek],
+        output_schema=RoadmapWeekList,
         instructions=[
             "Create a practical roadmap.",
             "Use the selected course as the primary learning spine.",
@@ -24,10 +28,13 @@ def build_roadmap(
             "Each week must have exactly one clearly scoped topic.",
             "Do not add YouTube resources yet.",
             "Include a practical task and measurable completion criteria per week.",
+            'Return valid JSON only, with no Markdown fences and exactly this top-level shape: {"weeks": [...]}.',
+            'Since "youtube_resource" is a required field of TopicResource type but should not be selected yet, set it to a dummy object: {"topic": "", "video_title": "", "video_url": "", "creator": "", "selection_reason": ""}.',
         ],
     )
 
-    draft_weeks = response_content(
+    logging.info("Running Roadmap Planning Agent...")
+    draft_weeks_resp = response_content(
         planner,
         f"""Requirement:
 {requirement.model_dump_json(indent=2)}
@@ -39,13 +46,50 @@ Why it won:
 {ranking.model_dump_json(indent=2)}""",
     )
 
+    import json
+    if isinstance(draft_weeks_resp, RoadmapWeekList):
+        roadmap_week_list = draft_weeks_resp
+    elif isinstance(draft_weeks_resp, str):
+        cleaned = draft_weeks_resp.strip()
+        if cleaned.startswith("```"):
+            if cleaned.startswith("```json"):
+                cleaned = cleaned[7:]
+            elif cleaned.startswith("```"):
+                cleaned = cleaned[3:]
+            if cleaned.endswith("```"):
+                cleaned = cleaned[:-3]
+            cleaned = cleaned.strip()
+        try:
+            data = json.loads(cleaned)
+        except Exception as e:
+            logging.error("Failed to parse agent response as JSON: %s. Cleaned: %r", str(e), cleaned)
+            raise ValueError(f"Failed to parse agent response as JSON: {e}. Cleaned content: {cleaned}") from e
+        roadmap_week_list = RoadmapWeekList.model_validate(data)
+    elif isinstance(draft_weeks_resp, dict):
+        roadmap_week_list = RoadmapWeekList.model_validate(draft_weeks_resp)
+    else:
+        raise TypeError(f"Unexpected response type from Roadmap Planning Agent: {type(draft_weeks_resp)} (value: {draft_weeks_resp!r})")
+
+    draft_weeks = roadmap_week_list.weeks
+    logging.info("Drafted roadmap with %d weeks.", len(draft_weeks))
+
     complete_weeks: list[RoadmapWeek] = []
 
     for week in draft_weeks:
+        logging.info("Selecting YouTube resource for Week %d topic: '%s'", week.week, week.topic)
+        console.print(f"[dim]  → Searching YouTube for Week {week.week} resource: '{week.topic}'...[/dim]")
         resource = select_topic_resource(
             topic=week.topic,
             requirement=requirement,
             selected_course=selected_course,
+        )
+        logging.info(
+            "Selected resource for Week %d topic '%s': '%s' by %s (%s)",
+            week.week,
+            week.topic,
+            resource.video_title,
+            resource.creator,
+            resource.video_url,
         )
 
         complete_weeks.append(
@@ -60,6 +104,7 @@ Why it won:
             )
         )
 
+    logging.info("Finished building final roadmap with %d complete weeks.", len(complete_weeks))
     return FinalRoadmap(
         title=f"{requirement.topic} Learning Roadmap",
         selected_course=selected_course.title,

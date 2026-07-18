@@ -1,24 +1,29 @@
+import logging
 from agno.tools.function import Function
 
 from agents.base import build_agent, response_content
 from tools.search import format_evidence, web_search
-from utils.models import Creator, UserRequirement
+from utils.models import CreatorList, UserRequirement
 from utils.settings import settings
 
 
-def discover_creators(requirement: UserRequirement) -> list[Creator]:
+def discover_creators(requirement: UserRequirement) -> CreatorList:
+    logging.info("Starting discover_creators for topic: '%s'", requirement.topic)
+    query = (
+        f"Learn {requirement.topic} "
+        f"as {requirement.current_level} "
+    )
+    logging.info("Creator discovery web search query: '%s'", query)
+
     results = web_search(
-        query=(
-            f"best YouTube creators teaching {requirement.topic} "
-            f"for {requirement.current_level} "
-        ),
+        query=query,
         max_results=settings.max_creators,
         include_domains=["youtube.com"],
     )
 
     agent = build_agent(
         name="Creator Discovery Agent",
-        output_schema=list[Creator],
+        output_schema=CreatorList,
         tools=[
             Function(
                 name="search_web",
@@ -35,7 +40,7 @@ def discover_creators(requirement: UserRequirement) -> list[Creator]:
         ],
     )
 
-    return response_content(
+    response = response_content(
         agent,
         f"""User requirement:
 {requirement.model_dump_json(indent=2)}
@@ -45,3 +50,8 @@ Search evidence:
 
 Return creators appropriate for this roadmap.""",
     )
+    logging.info(
+        "Creator discovery completed. Found creators: %s",
+        [c.name for c in response.creators]
+    )
+    return response.creators

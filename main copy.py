@@ -138,13 +138,11 @@ def start() -> None:
         logging.info("Starting creator discovery...")
         creators = discover_creators(requirement)
         logging.info("Discovered creators: %s", [c.name for c in creators])
-    console.print(f"[green]✓[/green] Found creators: {', '.join(c.name for c in creators)}")
 
     with status("Researching creator-led courses and cohorts..."):
         logging.info("Starting course discovery...")
         courses = find_courses(requirement, creators)
         logging.info("Discovered courses: %s", [c.title for c in courses])
-    console.print(f"[green]✓[/green] Discovered courses: {', '.join(c.title for c in courses)}")
 
     if not courses:
         logging.warning("No eligible creator-led courses were found.")
@@ -157,13 +155,11 @@ def start() -> None:
         logging.info("Starting review validation...")
         reviews = validate_reviews(courses)
         logging.info("Validated reviews: %s", [r.course_title for r in reviews])
-    console.print("[green]✓[/green] Checked public feedback and reviews for candidate courses")
 
     with status("Ranking course candidates..."):
         logging.info("Starting course ranking...")
         rankings = rank_courses(requirement, courses, reviews)
         logging.info("Ranked course scores: %s", [{r.course_title: r.score} for r in rankings])
-    console.print("[green]✓[/green] Ranked all course candidates")
 
     if not rankings:
         logging.error("Could not rank any valid course candidates.")
@@ -188,7 +184,6 @@ def start() -> None:
             ranking=selected_ranking,
         )
         logging.info("Roadmap successfully built: %s", roadmap.title)
-    console.print("[green]✓[/green] Built final roadmap and selected YouTube tutorials")
 
     markdown = roadmap_to_markdown(roadmap)
 

@@ -1,7 +1,9 @@
+import logging
 from agents.base import build_agent, response_content
 from utils.models import (
     CourseCandidate,
     RankedCourse,
+    RankedCourseList,
     ReviewEvidence,
     UserRequirement,
 )
@@ -12,9 +14,14 @@ def rank_courses(
     courses: list[CourseCandidate],
     reviews: list[ReviewEvidence],
 ) -> list[RankedCourse]:
+    logging.info(
+        "Starting rank_courses. Candidates count: %d, Reviews count: %d",
+        len(courses),
+        len(reviews),
+    )
     agent = build_agent(
         name="Course Ranking Agent",
-        output_schema=list[RankedCourse],
+        output_schema=RankedCourseList,
         instructions=[
             "Rank only the supplied candidates.",
             "Use this weighted score: goal relevance 30%, curriculum depth 20%, "
@@ -27,7 +34,8 @@ def rank_courses(
         ],
     )
 
-    return response_content(
+    logging.info("Running Course Ranking Agent...")
+    response = response_content(
         agent,
         f"""Requirement:
 {requirement.model_dump_json(indent=2)}
@@ -38,3 +46,8 @@ Courses:
 Review evidence:
 {[review.model_dump() for review in reviews]}""",
     )
+    logging.info(
+        "Course ranking completed. Rankings: %s",
+        [{r.course_title: r.score} for r in response.rankings]
+    )
+    return response.rankings

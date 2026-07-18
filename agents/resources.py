@@ -10,10 +10,7 @@ def select_topic_resource(
     selected_course: CourseCandidate,
 ) -> TopicResource:
     results = web_search(
-        query=(
-            f"site:youtube.com {topic} tutorial "
-            f"{requirement.topic} "
-        ),
+        query=f"{topic} tutorial {requirement.topic}",
         max_results=settings.max_resource_candidates,
         include_domains=["youtube.com"],
     )

@@ -82,3 +82,33 @@ class FinalRoadmap(BaseModel):
     selected_course_reason: str
     evidence_note: str
     weeks: list[RoadmapWeek]
+
+
+
+class CreatorList(BaseModel):
+    creators: list[Creator] = Field(
+        min_length=3,
+        max_length=5,
+    )
+
+
+class CourseCandidateList(BaseModel):
+    courses: list[CourseCandidate] = Field(
+        max_length=8,
+    )
+
+
+class ReviewEvidenceList(BaseModel):
+    reviews: list[ReviewEvidence]
+
+
+class RankedCourseList(BaseModel):
+    rankings: list[RankedCourse]
+
+
+class RoadmapWeekList(BaseModel):
+    weeks: list[RoadmapWeek]
+
+
+class CourseURLList(BaseModel):
+    urls: list[CourseURL]
