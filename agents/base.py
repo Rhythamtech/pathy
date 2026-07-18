@@ -42,15 +42,21 @@ def build_agent(
 
 def _extract_json(text: str) -> str:
     cleaned = text.strip()
+    # Strip </think> reasoning blocks (some models emit these)
+    if "</think>" in cleaned:
+        cleaned = cleaned.split("</think>", 1)[-1].strip()
+    # Strip markdown code fences
     if cleaned.startswith("```"):
         cleaned = re.sub(r"^```\w*\n?", "", cleaned)
         cleaned = re.sub(r"\n?```$", "", cleaned)
         cleaned = cleaned.strip()
+    # Slice to the outermost JSON object
     brace_start = cleaned.find("{")
     if brace_start != -1:
         cleaned = cleaned[brace_start:]
     brace_end = cleaned.rfind("}")
     if brace_end != -1:
+        # Drop any trailing content after the last `}` (causes "Extra data" errors)
         cleaned = cleaned[: brace_end + 1]
     return cleaned.strip()
 
