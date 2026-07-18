@@ -1,34 +1,37 @@
 import logging
+from agno.tools.function import Function
+
 from agents.base import build_agent, response_content
 from tools.search import format_evidence, web_search
 from utils.models import CourseCandidate, ReviewEvidence, ReviewEvidenceList
 from utils.settings import settings
 
 
-def validate_reviews(courses: list[CourseCandidate]) -> list[ReviewEvidence]:
-    logging.info("Starting validate_reviews for %d courses...", len(courses))
-    evidence: list[dict] = []
+async def _search_reviews(query: str) -> str:
+    """Search Reddit for course reviews and feedback."""
+    results = await web_search(
+        query=query,
+        max_results=settings.max_reviews_per_course,
+        include_domains=["reddit.com"],
+    )
+    return format_evidence(results)
 
-    for course in courses:
-        query = f'"{course.title}" reviews Reddit community feedback'
-        logging.info("Searching Reddit feedback for '%s' with query: '%s'", course.title, query)
-        results = web_search(
-            query=query,
-            max_results=settings.max_reviews_per_course,
-            include_domains=["reddit.com"],
-        )
-        logging.info("Found %d Reddit search results for '%s'", len(results), course.title)
-        evidence.append(
-            {
-                "course_title": course.title,
-                "search_results": results,
-            }
-        )
+
+async def validate_reviews(courses: list[CourseCandidate]) -> list[ReviewEvidence]:
+    logging.info("Starting validate_reviews for %d courses...", len(courses))
 
     agent = build_agent(
         name="Review Validation Agent",
         output_schema=ReviewEvidenceList,
+        tools=[
+            Function(
+                name="search_reviews",
+                description="Search Reddit for feedback on specific courses using a custom query.",
+                entrypoint=_search_reviews,
+            )
+        ],
         instructions=[
+            "Use the `search_reviews` tool to search for community feedback on each provided course.",
             "Review feedback is evidence, not absolute truth.",
             "Prioritize recent independent and specific feedback.",
             "Treat testimonials from the provider website as low confidence.",
@@ -38,14 +41,13 @@ def validate_reviews(courses: list[CourseCandidate]) -> list[ReviewEvidence]:
         ],
     )
 
-    formatted = "\n\n".join(
-        f"""COURSE: {item["course_title"]}
-{format_evidence(item["search_results"])}"""
-        for item in evidence
-    )
+    course_data = "\n".join([f"- {c.title}" for c in courses])
 
-    logging.info("Running Review Validation Agent on compiled feedback evidence...")
-    response = response_content(agent, f"Public feedback evidence:\n\n{formatted}")
+    logging.info("Running Review Validation Agent on courses...")
+    response = await response_content(
+        agent,
+        f"Courses to validate:\n{course_data}\n\nPlease search for reviews and validate them."
+    )
     logging.info(
         "Review validation completed. Validated reviews: %s",
         [{r.course_title: r.confidence} for r in response.reviews]

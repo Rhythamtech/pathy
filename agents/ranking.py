@@ -9,7 +9,7 @@ from utils.models import (
 )
 
 
-def rank_courses(
+async def rank_courses(
     requirement: UserRequirement,
     courses: list[CourseCandidate],
     reviews: list[ReviewEvidence],
@@ -35,7 +35,7 @@ def rank_courses(
     )
 
     logging.info("Running Course Ranking Agent...")
-    response = response_content(
+    response = await response_content(
         agent,
         f"""Requirement:
 {requirement.model_dump_json(indent=2)}

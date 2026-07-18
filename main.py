@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 from datetime import datetime
@@ -39,17 +40,6 @@ def ask_requirement() -> UserRequirement:
         type=int,
     )
 
-    has_budget = typer.confirm("Do you have a course budget?", default=True)
-
-    budget_inr: Optional[int] = None
-
-    if has_budget:
-        budget_inr = typer.prompt(
-            "Maximum budget in INR",
-            default=10000,
-            type=int,
-        )
-
     preferred_language = typer.prompt(
         "Preferred learning language",
         default="English",
@@ -60,7 +50,6 @@ def ask_requirement() -> UserRequirement:
         current_level=current_level.lower(),
         target_outcome=target_outcome,
         weekly_hours=weekly_hours,
-        budget_inr=budget_inr,
         preferred_language=preferred_language,
     )
 
@@ -126,23 +115,16 @@ def roadmap_to_markdown(roadmap: FinalRoadmap) -> str:
     return "\n".join(lines)
 
 
-@app.command()
-def start() -> None:
-    setup_logging()
-    logging.info("Starting Pathy RoadMap AI workflow.")
-
-    requirement = ask_requirement()
-    logging.info("User requirements: %s", requirement.model_dump_json())
-
+async def _run_pipeline(requirement: UserRequirement) -> None:
     with status("Finding relevant YouTube creators..."):
         logging.info("Starting creator discovery...")
-        creators = discover_creators(requirement)
+        creators = await discover_creators(requirement)
         logging.info("Discovered creators: %s", [c.name for c in creators])
     console.print(f"[green]✓[/green] Found creators: {', '.join(c.name for c in creators)}")
 
     with status("Researching creator-led courses and cohorts..."):
         logging.info("Starting course discovery...")
-        courses = find_courses(requirement, creators)
+        courses = await find_courses(requirement, creators)
         logging.info("Discovered courses: %s", [c.title for c in courses])
     console.print(f"[green]✓[/green] Discovered courses: {', '.join(c.title for c in courses)}")
 
@@ -155,13 +137,13 @@ def start() -> None:
 
     with status("Checking sampled public feedback..."):
         logging.info("Starting review validation...")
-        reviews = validate_reviews(courses)
+        reviews = await validate_reviews(courses)
         logging.info("Validated reviews: %s", [r.course_title for r in reviews])
     console.print("[green]✓[/green] Checked public feedback and reviews for candidate courses")
 
     with status("Ranking course candidates..."):
         logging.info("Starting course ranking...")
-        rankings = rank_courses(requirement, courses, reviews)
+        rankings = await rank_courses(requirement, courses, reviews)
         logging.info("Ranked course scores: %s", [{r.course_title: r.score} for r in rankings])
     console.print("[green]✓[/green] Ranked all course candidates")
 
@@ -182,7 +164,7 @@ def start() -> None:
 
     with status("Building your roadmap and selecting one video per topic..."):
         logging.info("Building roadmap and picking topic resources...")
-        roadmap = build_roadmap(
+        roadmap = await build_roadmap(
             requirement=requirement,
             selected_course=selected_course,
             ranking=selected_ranking,
@@ -212,6 +194,17 @@ def start() -> None:
     console.print(
         f"[bold green]Saved research JSON:[/bold green] {json_path}"
     )
+
+
+@app.command()
+def start() -> None:
+    setup_logging()
+    logging.info("Starting Pathy RoadMap AI workflow.")
+
+    requirement = ask_requirement()
+    logging.info("User requirements: %s", requirement.model_dump_json())
+
+    asyncio.run(_run_pipeline(requirement))
 
 
 if __name__ == "__main__":

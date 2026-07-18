@@ -1,8 +1,10 @@
+import json
 import logging
-from typing import get_origin, get_args
+import re
+
 from agno.agent import Agent
 from agno.models.openai.like import OpenAILike
-from pydantic import BaseModel, create_model
+from pydantic import BaseModel
 
 from utils.settings import settings
 
@@ -10,14 +12,14 @@ from utils.settings import settings
 def build_agent(
     name: str,
     instructions: list[str],
-    output_schema=None,
+    output_schema: type[BaseModel] | None = None,
     tools: list | None = None,
 ) -> Agent:
     logging.info(
         "Building agent: '%s' with model '%s', output_schema '%s', instructions count %d, tools %s",
         name,
         settings.OPENAI_MODEL_NAME,
-        output_schema.__name__ if hasattr(output_schema, "__name__") else str(output_schema),
+        output_schema.__name__ if output_schema and hasattr(output_schema, "__name__") else str(output_schema),
         len(instructions),
         [getattr(t, "name", str(t)) for t in tools] if tools else []
     )
@@ -38,10 +40,25 @@ def build_agent(
     return agent
 
 
-def response_content(agent: Agent, prompt: str):
+def _extract_json(text: str) -> str:
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```\w*\n?", "", cleaned)
+        cleaned = re.sub(r"\n?```$", "", cleaned)
+        cleaned = cleaned.strip()
+    brace_start = cleaned.find("{")
+    if brace_start != -1:
+        cleaned = cleaned[brace_start:]
+    brace_end = cleaned.rfind("}")
+    if brace_end != -1:
+        cleaned = cleaned[: brace_end + 1]
+    return cleaned.strip()
+
+
+async def response_content(agent: Agent, prompt: str) -> BaseModel | str:
     logging.info("Running agent '%s'. Prompt length: %d chars", agent.name, len(prompt))
     try:
-        response = agent.run(prompt)
+        response = await agent.arun(prompt)
     except Exception as e:
         logging.error("Agent '%s' execution failed: %s", agent.name, str(e), exc_info=True)
         raise e
@@ -51,9 +68,50 @@ def response_content(agent: Agent, prompt: str):
         logging.error(msg)
         raise RuntimeError(msg)
 
-    logging.info("Agent '%s' execution succeeded. Response length: %d chars", agent.name, len(str(response.content)))
+    content = response.content
+    logging.info("Agent '%s' execution succeeded. Response length: %d chars", agent.name, len(str(content)))
 
-    if agent.output_schema is not None and isinstance(response.content, str):
-        print(f"\n[ERROR] {agent.name} failed to parse response into schema. Raw response:\n{response.content}\n")
+    if agent.output_schema is None:
+        return content
 
-    return response.content
+    schema_name = agent.output_schema.__name__ if hasattr(agent.output_schema, "__name__") else str(agent.output_schema)
+
+    if isinstance(content, agent.output_schema):
+        return content
+
+    if isinstance(content, dict):
+        return agent.output_schema(**content)
+
+    if isinstance(content, str):
+        raw = content
+        for attempt in (_extract_json, lambda s: s.strip()):
+            cleaned = attempt(raw)
+            if not cleaned:
+                continue
+            try:
+                data = json.loads(cleaned)
+                return agent.output_schema(**data)
+            except (json.JSONDecodeError, TypeError, ValueError):
+                continue
+
+        try:
+            return agent.output_schema.model_validate_json(raw)
+        except Exception:
+            pass
+
+        logging.error(
+            "Agent '%s' failed to parse response into %s. Raw response:\n%s",
+            agent.name, schema_name, raw,
+        )
+        raise RuntimeError(
+            f"{agent.name} failed to parse response into {schema_name}.\n"
+            f"Raw response:\n{raw}"
+        )
+
+    logging.error(
+        "Agent '%s' returned unexpected type: %s. Value: %r",
+        agent.name, type(content).__name__, content,
+    )
+    raise TypeError(
+        f"{agent.name} returned unexpected type {type(content).__name__}: {content!r}"
+    )

@@ -1,4 +1,7 @@
+import asyncio
 import logging
+from agno.tools.function import Function
+
 from agents.base import build_agent, response_content
 from agents.resources import select_topic_resource
 from utils.console import console
@@ -12,11 +15,13 @@ from utils.models import (
 )
 
 
-def build_roadmap(
+async def build_roadmap(
     requirement: UserRequirement,
     selected_course: CourseCandidate,
     ranking: RankedCourse,
 ) -> FinalRoadmap:
+    import json
+
     logging.info("Starting build_roadmap for selected course: '%s'", selected_course.title)
     planner = build_agent(
         name="Roadmap Planning Agent",
@@ -34,7 +39,7 @@ def build_roadmap(
     )
 
     logging.info("Running Roadmap Planning Agent...")
-    draft_weeks_resp = response_content(
+    draft_weeks_resp = await response_content(
         planner,
         f"""Requirement:
 {requirement.model_dump_json(indent=2)}
@@ -46,7 +51,6 @@ Why it won:
 {ranking.model_dump_json(indent=2)}""",
     )
 
-    import json
     if isinstance(draft_weeks_resp, RoadmapWeekList):
         roadmap_week_list = draft_weeks_resp
     elif isinstance(draft_weeks_resp, str):
@@ -73,12 +77,11 @@ Why it won:
     draft_weeks = roadmap_week_list.weeks
     logging.info("Drafted roadmap with %d weeks.", len(draft_weeks))
 
-    complete_weeks: list[RoadmapWeek] = []
-
-    for week in draft_weeks:
+    # Select YouTube resources for all weeks concurrently
+    async def _select_resource(week):
         logging.info("Selecting YouTube resource for Week %d topic: '%s'", week.week, week.topic)
         console.print(f"[dim]  → Searching YouTube for Week {week.week} resource: '{week.topic}'...[/dim]")
-        resource = select_topic_resource(
+        resource = await select_topic_resource(
             topic=week.topic,
             requirement=requirement,
             selected_course=selected_course,
@@ -91,18 +94,22 @@ Why it won:
             resource.creator,
             resource.video_url,
         )
+        return week, resource
 
-        complete_weeks.append(
-            RoadmapWeek(
-                week=week.week,
-                topic=week.topic,
-                learning_goal=week.learning_goal,
-                primary_course_focus=week.primary_course_focus,
-                youtube_resource=resource,
-                practical_work=week.practical_work,
-                completion_criteria=week.completion_criteria,
-            )
+    results = await asyncio.gather(*[_select_resource(week) for week in draft_weeks])
+
+    complete_weeks: list[RoadmapWeek] = [
+        RoadmapWeek(
+            week=week.week,
+            topic=week.topic,
+            learning_goal=week.learning_goal,
+            primary_course_focus=week.primary_course_focus,
+            youtube_resource=resource,
+            practical_work=week.practical_work,
+            completion_criteria=week.completion_criteria,
         )
+        for week, resource in results
+    ]
 
     logging.info("Finished building final roadmap with %d complete weeks.", len(complete_weeks))
     return FinalRoadmap(

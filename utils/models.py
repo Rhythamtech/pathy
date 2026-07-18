@@ -6,7 +6,6 @@ class UserRequirement(BaseModel):
     current_level: str
     target_outcome: str
     weekly_hours: int
-    budget_inr: int | None = None
     preferred_language: str = "English"
 
 
@@ -89,6 +88,7 @@ class CreatorList(BaseModel):
     creators: list[Creator] = Field(
         min_length=3,
         max_length=5,
+        description="3–5 YouTube creators; never empty",
     )
 
 

@@ -1,57 +1,59 @@
+from datetime import datetime
+import asyncio
 import logging
-from agno.tools.function import Function
 
 from agents.base import build_agent, response_content
 from tools.search import format_evidence, web_search
-from utils.models import CreatorList, UserRequirement
+from utils.models import Creator, CreatorList, UserRequirement
 from utils.settings import settings
 
 
-def discover_creators(requirement: UserRequirement) -> CreatorList:
-    logging.info("Starting discover_creators for topic: '%s'", requirement.topic)
-    query = (
-        f"Learn {requirement.topic} "
-        f"as {requirement.current_level} "
-    )
-    logging.info("Creator discovery web search query: '%s'", query)
-
-    results = web_search(
+async def _yt_evidence(query: str) -> str:
+    results = await web_search(
         query=query,
         max_results=settings.max_creators,
         include_domains=["youtube.com"],
     )
+    return format_evidence(results)
+
+
+async def discover_creators(requirement: UserRequirement) -> list[Creator]:
+    logging.info("discover_creators: %s", requirement.topic)
+
+    queries = [
+        f"{requirement.topic} for {requirement.current_level} in {requirement.preferred_language} {datetime.now().year}"
+    ]
+    
+    blocks = await asyncio.gather(*[_yt_evidence(q) for q in queries], return_exceptions=True)
+    evidence = "\n\n======\n\n".join(
+        f"Query: {q}\n{b}" for q, b in zip(queries, blocks) if isinstance(b, str) and b.strip()
+    )
+    if not evidence.strip() or evidence.count("No evidence") == len(queries):
+        raise RuntimeError(
+            "YouTube search returned no creator evidence. Check py_yt / network."
+        )
 
     agent = build_agent(
         name="Creator Discovery Agent",
         output_schema=CreatorList,
-        tools=[
-            Function(
-                name="search_web",
-                description="Search web evidence when supplied evidence is insufficient.",
-                entrypoint=web_search,
-            )
-        ],
         instructions=[
-            "Select only 3 to 5 relevant YouTube creators.",
-            "Prioritize educators with technical depth and a real public audience.",
-            "Do not select influencers based purely on subscriber count.",
-            "Do not invent channel URLs or audience claims.",
-            "Every selection must be grounded in supplied evidence.",
+            "Pick 3–5 YouTube educators from the search evidence only.",
+            "Prefer technical depth and real teaching channels, not pure entertainment.",
+            "Do not invent names, URLs, or audience claims.",
+            "Every creator must map to at least one evidence URL from the results.",
+            "Return exactly 3 to 5 creators (never an empty list).",
         ],
     )
 
-    response = response_content(
+    response = await response_content(
         agent,
         f"""User requirement:
 {requirement.model_dump_json(indent=2)}
 
-Search evidence:
-{format_evidence(results)}
+YouTube search evidence:
+{evidence}
 
-Return creators appropriate for this roadmap.""",
+Return 3–5 creators grounded in the evidence above.""",
     )
-    logging.info(
-        "Creator discovery completed. Found creators: %s",
-        [c.name for c in response.creators]
-    )
+    logging.info("creators: %s", [c.name for c in response.creators])
     return response.creators

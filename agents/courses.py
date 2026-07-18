@@ -1,143 +1,127 @@
-import logging
 from datetime import datetime
+import asyncio
+import logging
+import re
+from urllib.parse import urlparse
+
 from agents.base import build_agent, response_content
-from tools.search import format_evidence, read_page, web_search
-from utils.models import CourseCandidate, Creator, UserRequirement, CourseURLList, CourseCandidateList
+from tools.search import read_page, web_search
+from utils.models import (
+    CourseCandidate,
+    CourseCandidateList,
+    CourseURLList,
+    Creator,
+    UserRequirement,
+)
 from utils.settings import settings
 
-
-def get_official_course_evidence(course_url: str) -> str:
-    logging.info("Attempting to get official course evidence from URL: %s", course_url)
-    try:
-        content = read_page(course_url, max_characters=7000)
-        logging.info("Successfully fetched %d chars of course evidence from %s", len(content), course_url)
-        return content
-    except Exception as e:
-        logging.warning("Failed to fetch official course evidence from %s: %s", course_url, str(e))
-        return ""
+_URL_RE = re.compile(r"https?://[^\s,)]+")
+_SKIP_HOSTS = {
+    "youtube.com", "www.youtube.com", "youtu.be",
+    "twitter.com", "x.com", "instagram.com", "linkedin.com",
+    "facebook.com", "tiktok.com", "reddit.com",
+}
 
 
-def find_courses(
+def _course_urls(text: str) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+    for m in _URL_RE.finditer(text):
+        url = m.group(0).rstrip(".,;:!?")
+        host = urlparse(url).netloc
+        if host and host not in _SKIP_HOSTS and url not in seen:
+            seen.add(url)
+            out.append(url)
+    return out
+
+
+async def _yt_course_block(query: str) -> str:
+    results = await web_search(query, max_results=5, include_domains=["youtube.com"])
+    if not results:
+        return "No results found."
+    blocks = []
+    for r in results:
+        desc = r.get("content", "")
+        urls = _course_urls(desc)
+        url_lines = "\n".join(f"  - {u}" for u in urls) if urls else "  (none)"
+        blocks.append(
+            f"Video: {r['title']}\nURL: {r['url']}\n{desc}\nExternal URLs:\n{url_lines}"
+        )
+    return "\n\n---\n\n".join(blocks)
+
+
+async def find_courses(
     requirement: UserRequirement,
     creators: list[Creator],
 ) -> list[CourseCandidate]:
-    logging.info("Starting find_courses...")
     if not creators:
-        logging.error("Creator discovery returned no creators.")
         raise ValueError("Creator discovery returned no creators.")
 
-    if not all(isinstance(creator, Creator) for creator in creators):
-        received = [type(creator).__name__ for creator in creators]
-        logging.error("Expected list[Creator] from discover_creators(), received: %s", received)
-        raise TypeError(
-            "Expected list[Creator] from discover_creators(), "
-            f"received: {received}"
-        )
+    queries = [f"{c.name} {requirement.topic} course cohort bootcamp for {requirement.current_level} in {requirement.preferred_language} {datetime.now().year}." 
+                for c in creators[:3]]
 
-    results = []
-    # Try searching for each creator individually to get high-quality targeted results
-    # and avoid complex, malformed queries that might fail Jina search.
-    for creator in creators[:3]:  # Top 3 creators
-        creator_query = (
-            f'"{creator.name}" '
-            f"lastest course or cohort for {requirement.topic}"
-        )
-        try:
-            creator_results = web_search(query=creator_query, max_results=3)
-            results.extend(creator_results)
-        except Exception as e:
-            logging.warning("Web search failed for creator '%s': %s", creator.name, e)
-
-    # Fallback/general query to make sure we don't miss general creator-led courses
-    general_query = (
-        f"{requirement.topic} "
-        f"lastest course or cohort."
+    raw = await asyncio.gather(*[_yt_course_block(q) for q in queries], return_exceptions=True)
+    search_context = "\n\n======\n\n".join(
+        f"Search query: {q}\n\n{r}"
+        for q, r in zip(queries, raw)
+        if not isinstance(r, Exception)
     )
-    try:
-        general_results = web_search(query=general_query, max_results=4)
-        results.extend(general_results)
-    except Exception as e:
-        logging.warning("General course web search failed: %s", e)
 
-    # Remove duplicates by URL
-    seen_urls = set()
-    unique_results = []
-    for r in results:
-        url = r.get("url")
-        if url and url not in seen_urls:
-            seen_urls.add(url)
-            unique_results.append(r)
-    results = unique_results[:8]
-    logging.info("Course discovery web search combined and returned %d items.", len(results))
-
-    # Extract top official course page URLs
     url_agent = build_agent(
         name="Course URL Extractor",
         output_schema=CourseURLList,
         instructions=[
-            "Identify the top official direct course website URLs from the search results.",
-            "Exclude social media, reviews, YouTube links, or directories.",
-            "Only return direct official course landing/syllabus URLs.",
-            "Limit to at most 3 top official URLs.",
+            "Extract official course landing page URLs from YouTube search results.",
+            "Use external URLs in video descriptions; skip social, reviews, YouTube, directories.",
+            "Only direct official course/syllabus URLs. Max 3.",
         ],
     )
-
-    logging.info("Extracting candidate course page URLs...")
-    candidate_urls_resp = response_content(
+    urls_resp = await response_content(
         url_agent,
-        f"Search results:\n{format_evidence(results)}",
+        f"""Requirement:
+{requirement.model_dump_json(indent=2)}
+
+Creators: {[c.model_dump() for c in creators]}
+
+YouTube results:
+{search_context}
+
+Extract official course landing page URLs only.""",
     )
-    candidate_urls = candidate_urls_resp.urls
-    logging.info("Candidate URLs extracted: %s", [item.url for item in candidate_urls])
+    candidate_urls = urls_resp.urls
 
-    # Read the top official pages
-    official_evidence_blocks = []
+    evidence_parts: list[str] = []
     if candidate_urls:
-        for item in candidate_urls:
-            page_text = get_official_course_evidence(item.url)
-            if page_text.strip():
-                official_evidence_blocks.append(
-                    f"Official URL: {item.url}\nContent:\n{page_text}"
-                )
+        pages = await asyncio.gather(
+            *[read_page(item.url, max_characters=7000) for item in candidate_urls],
+            return_exceptions=True,
+        )
+        for item, page in zip(candidate_urls, pages):
+            if isinstance(page, str) and page.strip():
+                evidence_parts.append(f"Official URL: {item.url}\nContent:\n{page}")
 
-    official_evidence = "\n\n---\n\n".join(official_evidence_blocks)
-    logging.info("Syllabus evidence blocks fetched: %d", len(official_evidence_blocks))
-
-    # Extract details using the official page content
     agent = build_agent(
         name="Course Research Agent",
         output_schema=CourseCandidateList,
         instructions=[
-            "Find only creator-led courses, cohorts, or bootcamps.",
-            "The instructor must have a meaningful YouTube creator connection.",
-            "Popular independent cohorts may be included if their instructor and syllabus are public.",
-            "Exclude Udemy, DataCamp, Coursera, and generic marketplace courses.",
-            "Prefer programs launched or updated in the most recent 6 to 8 months.",
-            "Extract price, launch or update date, syllabus topics, and instructor details using the provided official page contents.",
-            "Never invent launch dates, prices, syllabus topics, or URLs.",
+            "Find creator-led courses, cohorts, or bootcamps with a YouTube creator link.",
+            "Exclude Udemy, DataCamp, Coursera, and generic marketplaces.",
+            "Prefer programs launched/updated in the last 6–8 months.",
+            "Use official page content only for price, dates, syllabus, instructor.",
+            "Never invent facts or URLs.",
             f"Return at most {settings.max_courses} candidates.",
         ],
     )
-
-    logging.info("Researching course details using official page contents and web search results...")
-    response = response_content(
+    response = await response_content(
         agent,
         f"""Requirement:
 {requirement.model_dump_json(indent=2)}
 
-Eligible YouTube creators:
-{[creator.model_dump() for creator in creators]}
+Creators: {[c.model_dump() for c in creators]}
 
-Web search evidence:
-{format_evidence(results)}
+Official pages:
+{"\n\n---\n\n".join(evidence_parts)}
 
-Official course pages content:
-{official_evidence}
-
-Extract only verifiable eligible candidates, utilizing the official course page contents for specific details (price, dates, syllabus, instructor).""",
-    )
-    logging.info(
-        "Course discovery completed. Found courses: %s",
-        [c.title for c in response.courses]
+Extract only verifiable eligible candidates.""",
     )
     return response.courses
