@@ -12,7 +12,7 @@ services:
     image: pathy-backend:latest
     container_name: pathy-backend
     ports:
-      - "7777:7777"
+      - "${BACKEND_HOST_PORT:-7777}:7777"
     env_file:
       - .env
     environment:
@@ -35,7 +35,7 @@ services:
     image: pathy-frontend:latest
     container_name: pathy-frontend
     ports:
-      - "3000:3000"
+      - "${FRONTEND_HOST_PORT:-3000}:3000"
     environment:
       - PORT=3000
       - HOST=0.0.0.0
