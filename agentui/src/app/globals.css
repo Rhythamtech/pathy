@@ -1,0 +1,73 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --accent: 14 100% 56%;           /* #FF5722 */
+    --primary: 0 0% 7%;              /* #121212 */
+    --on-primary: 14 100% 56%;       /* #FF5722 */
+    --ink: 0 0% 7%;                  /* #121212 */
+    --ink-deep: 0 0% 3%;             /* #080808 */
+    --charcoal: 0 0% 15%;            /* #262626 */
+    --body: 0 0% 29%;                /* #4A4A4A */
+    --mute: 0 0% 45%;                /* #737373 */
+    --stone: 0 0% 55%;               /* #8C8C8C */
+    --ash: 0 0% 70%;                 /* #B3B3B3 */
+    --canvas: 0 0% 99%;              /* #FDFDFD */
+    --surface-soft: 0 0% 96%;        /* #F5F5F5 */
+    --surface-card: 0 0% 92%;        /* #EBEBEB */
+    --surface-dark: 0 0% 7%;         /* #121212 */
+    --surface-dark-elevated: 0 0% 15%; /* #262626 */
+    --hairline: 0 0% 90%;            /* #E5E5E5 */
+    --hairline-strong: 0 0% 45%;     /* #737373 */
+    --on-dark: 0 0% 99%;             /* #FDFDFD */
+    --on-dark-mute: 0 0% 70%;        /* #B3B3B3 */
+    --radius-card: 16px;
+    --radius-control: 8px;
+    --radius-pill: 9999px;
+    --scrollbar-width: 0.1rem;
+  }
+
+  .dark {
+    --primary: 0 0% 99%;             /* #FDFDFD */
+    --on-primary: 0 0% 7%;           /* #121212 */
+    --ink: 0 0% 99%;                 /* #FDFDFD */
+    --ink-deep: 0 0% 92%;            /* #EBEBEB */
+    --charcoal: 0 0% 70%;            /* #B3B3B3 */
+    --body: 0 0% 96%;                /* #F5F5F5 */
+    --mute: 0 0% 55%;                /* #8C8C8C */
+    --stone: 0 0% 45%;               /* #737373 */
+    --ash: 0 0% 29%;                 /* #4A4A4A */
+    --canvas: 0 0% 7%;               /* #121212 */
+    --surface-soft: 0 0% 12%;        /* #1F1F1F */
+    --surface-card: 0 0% 15%;        /* #262626 */
+    --surface-dark: 0 0% 99%;        /* #FDFDFD */
+    --surface-dark-elevated: 0 0% 96%; /* #F5F5F5 */
+    --hairline: 0 0% 18%;            /* #2E2E2E */
+    --hairline-strong: 0 0% 45%;     /* #737373 */
+    --on-dark: 0 0% 7%;              /* #121212 */
+    --on-dark-mute: 0 0% 29%;        /* #4A4A4A */
+  }
+
+  body {
+    @apply bg-canvas text-body;
+    font-feature-settings: "kern";
+  }
+}
+
+::-webkit-scrollbar {
+  width: var(--scrollbar-width);
+}
+
+::-webkit-scrollbar-thumb {
+  --tw-border-opacity: 1;
+  border-color: rgba(255, 255, 255, var(--tw-border-opacity));
+  border-radius: 9999px;
+  border-width: 1px;
+}
+
+::-webkit-scrollbar-track {
+  background-color: transparent;
+  border-radius: 9999px;
+}

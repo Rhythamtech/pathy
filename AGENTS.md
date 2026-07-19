@@ -6,6 +6,7 @@ CLI tool that builds personalized learning roadmaps. Takes a topic, finds YouTub
 
 ```bash
 uv run python cli.py start   # run the full pipeline (interactive prompts)
+uv run python server.py      # start the FastAPI / AgentOS server
 uv run pytest                 # run tests (none exist yet — only __init__.py)
 ```
 
@@ -28,6 +29,10 @@ cli.py:start() → ask_requirement() → _run_pipeline()
   → validate_reviews()    (agents/reviews.py)   — Reddit search → LLM → review evidence
   → rank_courses()        (agents/ranking.py)   — LLM scores courses (weighted rubric)
   → build_roadmap()       (agents/roadmap.py)   — LLM plans weeks → concurrent YouTube resource selection
+
+server.py (FastAPI / AgentOS)
+  → POST /api/generate   — direct REST API running the pipeline above
+  → AgentOS endpoint     — serves `pathy-roadmap-agent` with `generate_learning_roadmap` tool
 ```
 
 Output lands in `output/` as `.md` + `.json`. Logs go to `logs/production.log` (realtime flush).
@@ -36,9 +41,11 @@ Output lands in `output/` as `.md` + `.json`. Logs go to `logs/production.log` (
 
 - All agents built via `build_agent()` in `agents/base.py`
 - Uses `OpenAILike` model (compatible with any OpenAI API)
-- `use_json_mode=True`, `markdown=False` — agents emit JSON
+- `use_json_mode=True`, `markdown=False` — pipeline agents emit JSON
+- `pathy-roadmap-agent` in `server.py` uses `markdown=False` with `use_json_mode=True` (default builder configuration) but acts as a standard chat agent to stream/display tool outputs
 - `response_content()` handles parsing: pydantic model, dict, JSON string, strips `</think>` blocks and markdown fences
-- Agents with tool access (reviews, resources) use `agno.tools.function.Function` with `entrypoint` kwarg
+- Agents are secured with `PromptInjectionGuardrail` to block instruction bypass attempts
+- Agents with tool access (reviews, resources, server roadmap tool) use `agno.tools.function.Function` or direct tool definitions with `entrypoint` kwarg or standard signatures
 
 ## Key config (`utils/settings.py`)
 
@@ -46,7 +53,7 @@ Output lands in `output/` as `.md` + `.json`. Logs go to `logs/production.log` (
 
 ## Conventions
 
-- Web search uses Jina AI (`s.jina.ai`), YouTube search uses `py_yt`, page reading uses Jina Reader (`r.jina.ai`)
+- Web search uses Jina AI (`s.jina.ai`), YouTube search uses `youtube-search`, page reading uses Jina Reader (`r.jina.ai`)
 - Course search explicitly **excludes** Udemy, DataCamp, Coursera, generic marketplaces
 - Agent output schemas use wrapper types (`CreatorList`, `CourseCandidateList`, etc.) not bare lists — pydantic validation
 - `save_markdown()` auto-creates `output/` dir

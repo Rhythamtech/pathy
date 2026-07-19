@@ -18,7 +18,7 @@ Traditional roadmap generators usually produce generic, static outlines (e.g., "
 
 ## 🛠️ Architecture
 
-Pathy RoadMap AI uses an agent-orchestration pipeline built on **Agno (v2.x)**:
+Pathy RoadMap AI uses an agent-orchestration pipeline built on **Agno (v2.x)** equipped with a global **Prompt Injection Guardrail** to detect and reject malicious instructions in inputs:
 
 ```mermaid
 graph TD
@@ -68,11 +68,29 @@ JINA_AI_KEY=your_jina_ai_key # Required for web search & page content parsing
 
 ## 🎮 How to Run
 
-### Interactive Roadmap Pipeline
+### Interactive Roadmap Pipeline (CLI)
 Start the interactive prompt to generate a learning roadmap:
 ```bash
 uv run python cli.py start
 ```
+
+### Backend API Server (AgentOS / FastAPI)
+Start the backend server on `http://localhost:7777` to expose the API and agents:
+```bash
+uv run python server.py
+```
+This serves:
+* The OpenAPI docs at `http://localhost:7777/docs`
+* The Direct Roadmap REST API at `POST http://localhost:7777/api/generate`
+* The AgentOS WebSocket/HTTP endpoint at `http://localhost:7777` (for Agent UI chat interface)
+
+### Frontend Agent UI
+To interact with the Pathy Roadmap Assistant via a web interface, start the Next.js Agent UI:
+```bash
+cd agentui
+bun dev # or npm run dev / pnpm dev / yarn dev
+```
+Open [http://localhost:3000](http://localhost:3000) in your browser and connect to `http://localhost:7777`.
 
 ### Run Tests
 The codebase is equipped with unit and integration tests (using mocks to ensure 0% network or API cost during testing):

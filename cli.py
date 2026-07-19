@@ -193,6 +193,44 @@ def start() -> None:
     setup_logging()
     logging.info("Starting Pathy RoadMap AI workflow.")
 
+    from utils.runtime_config import is_configured, set_runtime_config
+    if not is_configured():
+        console.print("[bold yellow]OpenAI credentials are not configured![/bold yellow]")
+        console.print("Please provide OpenAI-compatible endpoint credentials:")
+        api_key = typer.prompt("OPENAI_API_KEY", hide_input=True).strip()
+        base_url = typer.prompt("OPENAI_BASE_URL", default="https://api.openai.com/v1").strip()
+        model_name = typer.prompt("OPENAI_MODEL_NAME", default="gpt-4o").strip()
+        
+        # Validate endpoint
+        import httpx
+        url = f"{base_url.rstrip('/')}/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+        test_body = {
+            "model": model_name,
+            "messages": [{"role": "user", "content": "ping"}],
+            "max_tokens": 1
+        }
+        with status("Validating endpoint credentials..."):
+            try:
+                with httpx.Client(timeout=10) as client:
+                    resp = client.post(url, json=test_body, headers=headers)
+                    if resp.status_code != 200:
+                        try:
+                            err_detail = resp.json().get("error", {}).get("message") or resp.text
+                        except Exception:
+                            err_detail = resp.text
+                        console.print(f"\n[bold red]Validation failed (HTTP {resp.status_code}): {err_detail}[/bold red]")
+                        raise typer.Exit(code=1)
+            except Exception as e:
+                console.print(f"\n[bold red]Connection to endpoint failed: {str(e)}[/bold red]")
+                raise typer.Exit(code=1)
+
+        set_runtime_config(api_key, base_url, model_name)
+        console.print("[green]✓[/green] Credentials validated and saved successfully.")
+
     requirement = ask_requirement()
     logging.info("User requirements: %s", requirement.model_dump_json())
 

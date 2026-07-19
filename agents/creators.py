@@ -30,7 +30,7 @@ async def discover_creators(requirement: UserRequirement) -> list[Creator]:
     )
     if not evidence.strip() or evidence.count("No evidence") == len(queries):
         raise RuntimeError(
-            "YouTube search returned no creator evidence. Check py_yt / network."
+            "YouTube search returned no creator evidence. Check youtube-search / network."
         )
 
     agent = build_agent(

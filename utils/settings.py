@@ -8,9 +8,9 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    OPENAI_API_KEY: str
-    OPENAI_BASE_URL: str
-    OPENAI_MODEL_NAME: str
+    OPENAI_API_KEY: str | None = None
+    OPENAI_BASE_URL: str | None = None
+    OPENAI_MODEL_NAME: str | None = None
 
     JINA_AI_KEY : str
 

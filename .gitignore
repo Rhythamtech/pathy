@@ -1,5 +1,26 @@
+# Environments
 .env
 .venv/
+
+# Documentation / Context
 CONTEXT.md
+
+# Cache / Compiled Python
 __pycache__/
 *.pyc
+.pytest_cache/
+
+# Databases / Sessions
+sessions.db
+*.db
+
+# OS files
+.DS_Store
+
+# Agent Workspace
+.agents
+
+# Application Outputs / Logs
+output/
+logs/
+skills-lock.json

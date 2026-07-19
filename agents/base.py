@@ -4,21 +4,35 @@ import re
 
 from agno.agent import Agent
 from agno.models.openai.like import OpenAILike
+from agno.guardrails import PromptInjectionGuardrail
 from pydantic import BaseModel
 
 from utils.settings import settings
 
+prompt_injection_guardrail = PromptInjectionGuardrail()
+
+
+from agno.db.sqlite import SqliteDb
+from typing import Any
+
+from utils.runtime_config import get_runtime_config
 
 def build_agent(
     name: str,
     instructions: list[str],
     output_schema: type[BaseModel] | None = None,
     tools: list | None = None,
+    db: Any = None,
 ) -> Agent:
+    cfg = get_runtime_config()
+    model_name = cfg["OPENAI_MODEL_NAME"]
+    api_key = cfg["OPENAI_API_KEY"]
+    base_url = cfg["OPENAI_BASE_URL"]
+
     logging.info(
         "Building agent: '%s' with model '%s', output_schema '%s', instructions count %d, tools %s",
         name,
-        settings.OPENAI_MODEL_NAME,
+        model_name,
         output_schema.__name__ if output_schema and hasattr(output_schema, "__name__") else str(output_schema),
         len(instructions),
         [getattr(t, "name", str(t)) for t in tools] if tools else []
@@ -27,15 +41,17 @@ def build_agent(
     agent = Agent(
         name=name,
         model=OpenAILike(
-            id=settings.OPENAI_MODEL_NAME,
-            api_key=settings.OPENAI_API_KEY,
-            base_url=settings.OPENAI_BASE_URL,
+            id=model_name or "",
+            api_key=api_key or "",
+            base_url=base_url or "",
         ),
         instructions=instructions,
         tools=tools or [],
         output_schema=output_schema,
         markdown=False,
         use_json_mode=True,
+        db=db,
+        pre_hooks=[prompt_injection_guardrail],
     )
     return agent
 

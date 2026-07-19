@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pathy-backend
+    ports:
+      - "7777:7777"
+    env_file:
+      - .env
+    environment:
+      - HOST=0.0.0.0
+      - PORT=7777
+      - DEBUG=false
+    restart: always
+
+  frontend:
+    build:
+      context: ./agentui
+      dockerfile: Dockerfile
+    container_name: pathy-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - HOST=0.0.0.0
+    restart: always

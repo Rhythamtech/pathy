@@ -38,4 +38,10 @@ def setup_logging(
     file_handler.setLevel(log_level)
     root_logger.addHandler(file_handler)
 
-    logging.info("Production logging initialized. Real-time file logging to: %s", log_path.absolute())
+    # Console/terminal handler
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    console_handler.setLevel(log_level)
+    root_logger.addHandler(console_handler)
+
+    logging.info("Production logging initialized. Logging to file (%s) and terminal.", log_path.absolute())

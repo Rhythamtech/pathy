@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 from typing import Any
 from urllib.parse import quote
 
 import httpx
-from py_yt import Video, VideosSearch
+from youtube_search import YoutubeSearch
 
 from utils.console import console
 from utils.settings import settings
@@ -32,19 +33,24 @@ async def web_search(
     console.print(f"[dim]  → Searching: '{query}'...[/dim]")
 
     if include_domains and "youtube.com" in include_domains:
-        data = await VideosSearch(query, limit=max_results, language="en", region="US").next()
-        out = []
-        for v in data.get("result", []):
-            ch = v.get("channel") or {}
-            snip = "".join(s.get("text", "") for s in (v.get("descriptionSnippet") or []))
-            out.append({
+        results = await asyncio.to_thread(
+            lambda: YoutubeSearch(query, max_results=max_results).to_dict()
+        )
+        return [
+            {
                 "title": v.get("title", ""),
-                "url": v.get("link", ""),
-                "content": f"Channel: {ch.get('name', '')}\nViews: {(v.get('viewCount') or {}).get('text', '')}\n"
-                           f"Duration: {v.get('duration', '')}\nPublished: {v.get('publishedTime', '')}\nDescription: {snip}",
+                "url": f"https://www.youtube.com{v.get('url_suffix', '')}",
+                "content": (
+                    f"Channel: {v.get('channel', '')}\n"
+                    f"Views: {v.get('views', '')}\n"
+                    f"Duration: {v.get('duration', '')}\n"
+                    f"Published: {v.get('publish_time', '')}\n"
+                    f"Description: {v.get('long_desc', '') or ''}"
+                ),
                 "score": 0,
-            })
-        return out
+            }
+            for v in results
+        ]
 
     parts = [query]
     if include_domains:
@@ -77,26 +83,6 @@ async def web_search(
 
 
 async def read_page(url: str, max_characters: int = 7000) -> str:
-    if "youtube.com" in url or "youtu.be" in url:
-        if not _YT_ID.search(url):
-            return ""
-        try:
-            data = await Video.get(url, timeout=5)
-        except Exception as e:
-            logging.warning("py_yt failed for %s: %s", url, e)
-            return ""
-        if not isinstance(data, dict):
-            return ""
-        ch, views = data.get("channel") or {}, data.get("viewCount") or {}
-        desc = data.get("description") or data.get("shortDescription") or ""
-        return "\n".join([
-            f"Title: {data.get('title') or ''}",
-            f"Channel: {ch.get('name', '') if isinstance(ch, dict) else ''}",
-            f"Views: {views.get('text', '') if isinstance(views, dict) else ''}",
-            f"Duration: {data.get('duration') or ''}",
-            f"Description: {desc[:2000]}",
-        ])
-
     console.print(f"[dim]  → Reading: {url}...[/dim]")
     async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
         r = await client.get(
