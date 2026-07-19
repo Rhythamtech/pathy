@@ -1,9 +1,5 @@
 version: '3.8'
 
-networks:
-  pathy-network:
-    driver: bridge
-
 services:
   backend:
     build:
@@ -20,8 +16,6 @@ services:
       - PORT=7777
       - DEBUG=false
     restart: always
-    networks:
-      - pathy-network
 
   frontend:
     build:
@@ -42,5 +36,3 @@ services:
     depends_on:
       - backend
     restart: always
-    networks:
-      - pathy-network
