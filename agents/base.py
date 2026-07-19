@@ -17,6 +17,24 @@ from typing import Any
 
 from utils.runtime_config import get_runtime_config
 
+def sync_agent_config_pre_hook(agent: Agent) -> None:
+    """Pre-hook that dynamically updates the agent's model with the latest runtime configuration right before execution."""
+    cfg = get_runtime_config()
+    model_name = cfg["OPENAI_MODEL_NAME"]
+    api_key = cfg["OPENAI_API_KEY"]
+    base_url = cfg["OPENAI_BASE_URL"]
+
+    if agent.model and isinstance(agent.model, OpenAILike):
+        agent.model.id = model_name or ""
+        agent.model.api_key = api_key or ""
+        agent.model.base_url = base_url or ""
+        logging.info(
+            "Synced agent '%s' model with runtime config: model='%s', base_url='%s'",
+            agent.name,
+            model_name,
+            base_url
+        )
+
 def build_agent(
     name: str,
     instructions: list[str],
@@ -48,10 +66,10 @@ def build_agent(
         instructions=instructions,
         tools=tools or [],
         output_schema=output_schema,
-        markdown=False,
-        use_json_mode=True,
+        markdown=True if output_schema is None else False,
+        use_json_mode=True if output_schema is not None else False,
         db=db,
-        pre_hooks=[prompt_injection_guardrail],
+        pre_hooks=[prompt_injection_guardrail, sync_agent_config_pre_hook],
     )
     return agent
 

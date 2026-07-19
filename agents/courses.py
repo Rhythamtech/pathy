@@ -17,7 +17,6 @@ from utils.settings import settings
 
 _URL_RE = re.compile(r"https?://[^\s,)]+")
 _SKIP_HOSTS = {
-    "youtube.com", "www.youtube.com", "youtu.be",
     "twitter.com", "x.com", "instagram.com", "linkedin.com",
     "facebook.com", "tiktok.com", "reddit.com",
 }
@@ -72,8 +71,9 @@ async def find_courses(
         output_schema=CourseURLList,
         instructions=[
             "Extract official course landing page URLs from YouTube search results.",
-            "Use external URLs in video descriptions; skip social, reviews, YouTube, directories.",
-            "Only direct official course/syllabus URLs. Max 3.",
+            "Use external URLs in video descriptions. If no external landing page is found, you may use the YouTube video or playlist URL itself as the course URL.",
+            "Skip social media links (twitter, instagram, linkedin, facebook, tiktok) and directories.",
+            "Only direct official course, syllabus, or playlist URLs. Max 3.",
         ],
     )
     urls_resp = await response_content(
@@ -90,13 +90,16 @@ Extract official course landing page URLs only.""",
     )
     candidate_urls = urls_resp.urls
 
+    # Filter out YouTube URLs from Jina reading to avoid 402 / proxy blocking
+    read_urls = [item for item in candidate_urls if "youtube.com" not in item.url and "youtu.be" not in item.url]
+    
     evidence_parts: list[str] = []
-    if candidate_urls:
+    if read_urls:
         pages = await asyncio.gather(
-            *[read_page(item.url, max_characters=7000) for item in candidate_urls],
+            *[read_page(item.url, max_characters=7000) for item in read_urls],
             return_exceptions=True,
         )
-        for item, page in zip(candidate_urls, pages):
+        for item, page in zip(read_urls, pages):
             if isinstance(page, str) and page.strip():
                 evidence_parts.append(f"Official URL: {item.url}\nContent:\n{page}")
 
@@ -107,7 +110,7 @@ Extract official course landing page URLs only.""",
             "Find creator-led courses, cohorts, or bootcamps with a YouTube creator link.",
             "Exclude Udemy, DataCamp, Coursera, and generic marketplaces.",
             "Prefer programs launched/updated in the last 6–8 months.",
-            "Use official page content only for price, dates, syllabus, instructor.",
+            "Use search context or official page content for price, dates, syllabus, instructor.",
             "Never invent facts or URLs.",
             f"Return at most {settings.max_courses} candidates.",
         ],
@@ -119,7 +122,10 @@ Extract official course landing page URLs only.""",
 
 Creators: {[c.model_dump() for c in creators]}
 
-Official pages:
+YouTube Search Context (use this for details on YouTube-hosted courses):
+{search_context}
+
+Official pages (use this for details on external courses):
 {"\n\n---\n\n".join(evidence_parts)}
 
 Extract only verifiable eligible candidates.""",

@@ -18,6 +18,7 @@ uv run pytest                 # run tests (none exist yet — only __init__.py)
 - `.env` is required (gitignored). Copy `.env.example` and fill in:
   - `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL_NAME` — any OpenAI-compatible API
   - `JINA_AI_KEY` — used for web search via `s.jina.ai` and page reading via `r.jina.ai`
+  - `NEXT_PUBLIC_API_URL` — (Optional) public URL/IP of the backend (e.g. `http://<your-server-ip>:7777`) for building production frontend container.
 - `DATABASE_URL` and `REDIS_URL` in `.env.example` are **not used** in code
 
 ## Architecture

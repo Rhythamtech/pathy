@@ -14,6 +14,7 @@ import { APIRoutes } from '@/api/routes'
 import { useStore } from '@/store'
 import { toast } from 'sonner'
 import { Loader2, Settings, ShieldAlert, Key, Globe, Cpu } from 'lucide-react'
+import useChatActions from '@/hooks/useChatActions'
 
 // Simple custom Input wrapper in case Input is not available
 const CustomInput = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(
@@ -37,6 +38,7 @@ interface ApiConfigModalProps {
 
 export default function ApiConfigModal({ isOpen, onOpenChange }: ApiConfigModalProps) {
   const { selectedEndpoint, authToken } = useStore()
+  const { initialize } = useChatActions()
   
   const [apiKey, setApiKey] = useState('')
   const [baseUrl, setBaseUrl] = useState('')
@@ -124,6 +126,7 @@ export default function ApiConfigModal({ isOpen, onOpenChange }: ApiConfigModalP
       const data = await res.json()
       if (res.ok) {
         toast.success('API credentials validated & saved successfully!')
+        initialize() // refresh endpoints and model display
         onOpenChange(false)
       } else {
         setValidationError(data.detail || 'Validation failed.')
@@ -149,6 +152,7 @@ export default function ApiConfigModal({ isOpen, onOpenChange }: ApiConfigModalP
       })
       if (res.ok) {
         toast.success('Cleared overrides, reverted to environment configuration.')
+        initialize() // refresh endpoints and model display
         fetchConfigStatus()
       } else {
         const data = await res.json()

@@ -10,7 +10,7 @@ import {
   ReferenceData,
   Reference
 } from '@/types/os'
-import React, { type FC } from 'react'
+import React, { type FC, useState } from 'react'
 
 import Icon from '@/components/ui/icon'
 import ChatBlankState from './ChatBlankState'
@@ -125,20 +125,58 @@ const AgentMessageWrapper = ({ message }: MessageWrapperProps) => {
     </div>
   )
 }
-const Reasoning: FC<ReasoningStepProps> = ({ index, stepTitle }) => (
-  <div className="flex items-center gap-2 text-body">
-    <div className="flex h-[20px] items-center rounded-md bg-surface-card border border-hairline px-2">
-      <p className="text-[10px] font-mono uppercase text-accent">Step {index + 1}</p>
+interface CustomReasoningStepProps {
+  index: number
+  stepTitle: string
+  reasoningText?: string
+  result?: string
+}
+
+const Reasoning: FC<CustomReasoningStepProps> = ({ index, stepTitle, reasoningText, result }) => {
+  const [isOpen, setIsOpen] = useState(false)
+  const isInProgress = result === 'In progress'
+
+  return (
+    <div className="flex flex-col gap-1 text-body w-full">
+      <div
+        className="flex items-center gap-2 cursor-pointer select-none"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <div className="flex h-[20px] items-center rounded-md bg-surface-card border border-hairline px-2">
+          <p className="text-[10px] font-mono uppercase text-accent">Step {index + 1}</p>
+        </div>
+        <p className="text-xs font-semibold text-ink">{stepTitle}</p>
+        {isInProgress && (
+          <Icon
+            type="refresh"
+            size="xxs"
+            className="animate-spin text-accent"
+          />
+        )}
+        {reasoningText && (
+          <Icon
+            type={isOpen ? 'chevron-up' : 'chevron-down'}
+            size="xxs"
+            className="text-mute"
+          />
+        )}
+      </div>
+      {isOpen && reasoningText && (
+        <p className="pl-6 text-[11px] text-mute whitespace-pre-line leading-relaxed mt-0.5">
+          {reasoningText}
+        </p>
+      )}
     </div>
-    <p className="text-xs">{stepTitle}</p>
-  </div>
-)
+  )
+}
 const Reasonings: FC<ReasoningProps> = ({ reasoning }) => (
-  <div className="flex flex-col items-start justify-center gap-2">
-    {reasoning.map((title, index) => (
+  <div className="flex flex-col items-start justify-center gap-3 w-full">
+    {reasoning.map((step, index) => (
       <Reasoning
-        key={`${title.title}-${title.action}-${index}`}
-        stepTitle={title.title}
+        key={`${step.title}-${step.action}-${index}`}
+        stepTitle={step.title}
+        reasoningText={step.reasoning}
+        result={step.result}
         index={index}
       />
     ))}

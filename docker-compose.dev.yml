@@ -5,6 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: pathy-backend-dev:latest
     container_name: pathy-backend-dev
     ports:
       - "7777:7777"
@@ -23,6 +24,10 @@ services:
     build:
       context: ./agentui
       dockerfile: Dockerfile
+      args:
+        # In dev, defaults to localhost:7777 (both running on same machine)
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:7777}
+    image: pathy-frontend-dev:latest
     # Overwrite production command to use dev server for hot reloading
     command: npm run dev
     container_name: pathy-frontend-dev
@@ -30,9 +35,11 @@ services:
       - "3000:3000"
     environment:
       - PORT=3000
-      - HOST=0.0.0.0
+      - HOSTNAME=0.0.0.0
     volumes:
       - ./agentui:/app
       - /app/node_modules # Don't overwrite container's node_modules with host's
       - /app/.next # Don't overwrite container's build folder
+    depends_on:
+      - backend
     restart: always

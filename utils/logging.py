@@ -44,4 +44,7 @@ def setup_logging(
     console_handler.setLevel(log_level)
     root_logger.addHandler(console_handler)
 
+    # Suppress verbose warnings from agno library (like JSON parsing warning)
+    logging.getLogger("agno").setLevel(logging.ERROR)
+
     logging.info("Production logging initialized. Logging to file (%s) and terminal.", log_path.absolute())

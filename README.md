@@ -62,6 +62,7 @@ OPENAI_API_KEY=your_openai_compatible_api_key
 OPENAI_BASE_URL=https://api.openai.com/v1 # or your custom provider
 OPENAI_MODEL_NAME=gpt-4o # or your preferred model
 JINA_AI_KEY=your_jina_ai_key # Required for web search & page content parsing
+NEXT_PUBLIC_API_URL=http://localhost:7777 # (Optional) Public backend endpoint for production Docker build
 ```
 
 ---
@@ -90,7 +91,15 @@ To interact with the Pathy Roadmap Assistant via a web interface, start the Next
 cd agentui
 bun dev # or npm run dev / pnpm dev / yarn dev
 ```
-Open [http://localhost:3000](http://localhost:3000) in your browser and connect to `http://localhost:7777`.
+Open [http://localhost:3000](http://localhost:3000) (local development) in your browser and connect to `http://localhost:7777`.
+
+#### Running via Docker (Production)
+For production environments, build and run the services with:
+```bash
+./start.sh docker
+```
+* **Frontend port**: Mapped to port **`3001`** on the host to avoid default port 3000 conflicts.
+* **Connection**: Ensure `NEXT_PUBLIC_API_URL` is set in your `.env` file to your server's public IP/domain (e.g. `http://<your-server-ip>:7777`) before building so the frontend knows where to find the backend API. Alternatively, edit the active endpoint in the bottom-left of the sidebar directly in the browser UI.
 
 ### Run Tests
 The codebase is equipped with unit and integration tests (using mocks to ensure 0% network or API cost during testing):

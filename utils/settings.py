@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     OPENAI_MODEL_NAME: str | None = None
 
     JINA_AI_KEY : str
+    SEARXNG_URL: str = "http://tools-searxng-731bc6-88-214-23-153.sslip.io/"
 
 
     max_creators: int = 5

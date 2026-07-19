@@ -52,34 +52,80 @@ async def web_search(
             for v in results
         ]
 
+    # Commented out Jina AI Search
+    # parts = [query]
+    # if include_domains:
+    #     parts.append("(" + " OR ".join(f"site:{d}" for d in include_domains) + ")")
+    # if exclude_domains:
+    #     parts.extend(f"-site:{d}" for d in exclude_domains)
+    #
+    # try:
+    #     async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
+    #         r = await client.get(f"{JINA_SEARCH}{quote(' '.join(parts), safe='')}", headers=_headers())
+    #         r.raise_for_status()
+    # except httpx.HTTPStatusError as e:
+    #     if e.response.status_code in (402, 422, 429):
+    #         return []
+    #     raise
+    #
+    # if "application/json" not in r.headers.get("content-type", ""):
+    #     return [{"title": "Jina Search Result", "url": "", "content": r.text[:6000], "score": 0}]
+    #
+    # items = (r.json().get("data") or r.json().get("results") or r.json().get("items") or [])
+    # return [
+    #     {
+    #         "title": i.get("title", "Untitled"),
+    #         "url": i.get("url") or i.get("link") or "",
+    #         "content": (i.get("description") or i.get("content") or i.get("snippet") or "")[:1500],
+    #         "score": i.get("score", 0),
+    #     }
+    #     for i in items[:max_results]
+    # ]
+
+    # SearxNG Search Implementation
     parts = [query]
     if include_domains:
         parts.append("(" + " OR ".join(f"site:{d}" for d in include_domains) + ")")
     if exclude_domains:
         parts.extend(f"-site:{d}" for d in exclude_domains)
 
+    search_query = " ".join(parts)
+    searxng_url = settings.SEARXNG_URL
+    params = {
+        "q": search_query,
+        "format": "json",
+        "engines": "google",
+        "language": "en-US",
+        "pageno": 1,
+    }
+
     try:
         async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
-            r = await client.get(f"{JINA_SEARCH}{quote(' '.join(parts), safe='')}", headers=_headers())
-            r.raise_for_status()
-    except httpx.HTTPStatusError as e:
-        if e.response.status_code in (402, 422, 429):
-            return []
-        raise
+            resp = await client.get(searxng_url, params=params, headers={"User-Agent": "Requestly/1.0"})
+            resp.raise_for_status()
+            data = resp.json()
+    except Exception as e:
+        logging.error("SearxNG search failed: %s", str(e))
+        return []
 
-    if "application/json" not in r.headers.get("content-type", ""):
-        return [{"title": "Jina Search Result", "url": "", "content": r.text[:6000], "score": 0}]
+    results = data.get("results") or []
+    filtered_results = []
+    for item in results:
+        score = item.get("score")
+        try:
+            val = float(score) if score is not None else 0.0
+        except (ValueError, TypeError):
+            val = 0.0
+            
+        if val >= 0.5:
+            filtered_results.append({
+                "title": item.get("title", "Untitled"),
+                "url": item.get("url") or "",
+                "content": (item.get("content") or "")[:1500],
+                "score": val,
+            })
 
-    items = (r.json().get("data") or r.json().get("results") or r.json().get("items") or [])
-    return [
-        {
-            "title": i.get("title", "Untitled"),
-            "url": i.get("url") or i.get("link") or "",
-            "content": (i.get("description") or i.get("content") or i.get("snippet") or "")[:1500],
-            "score": i.get("score", 0),
-        }
-        for i in items[:max_results]
-    ]
+    return filtered_results[:max_results]
 
 
 async def read_page(url: str, max_characters: int = 7000) -> str:

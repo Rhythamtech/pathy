@@ -1,13 +1,12 @@
-version: '3.8'
-
 services:
   backend:
     build:
       context: .
       dockerfile: Dockerfile
+    image: pathy-backend:latest
     container_name: pathy-backend
-    ports:
-      - "7777:7777"
+    expose:
+      - "7777"
     env_file:
       - .env
     environment:
@@ -20,10 +19,18 @@ services:
     build:
       context: ./agentui
       dockerfile: Dockerfile
+      args:
+        # IMPORTANT: This is a browser-side variable — set it to your server's PUBLIC IP or domain,
+        # NOT a Docker service name. The browser (user's machine) must be able to reach this URL.
+        # Example: NEXT_PUBLIC_API_URL=http://88.214.211.111:7777
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:?NEXT_PUBLIC_API_URL must be set to your server public IP in .env}
+    image: pathy-frontend:latest
     container_name: pathy-frontend
-    ports:
-      - "3000:3000"
+    expose:
+      - "3000"
     environment:
       - PORT=3000
-      - HOST=0.0.0.0
+      - HOSTNAME=0.0.0.0
+    depends_on:
+      - backend
     restart: always

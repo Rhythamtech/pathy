@@ -215,6 +215,9 @@ const useAIChatStreamHandler = () => {
               chunk.event === RunEvent.TeamRunContent
             ) {
               setMessages((prevMessages) => {
+                if (chunk.agent_id && chunk.agent_id !== agentId) {
+                  return prevMessages
+                }
                 const newMessages = [...prevMessages]
                 const lastMessage = newMessages[newMessages.length - 1]
                 if (
@@ -260,7 +263,8 @@ const useAIChatStreamHandler = () => {
                   lastMessage &&
                   lastMessage.role === 'agent' &&
                   typeof chunk?.content !== 'string' &&
-                  chunk.content !== null
+                  chunk.content !== null &&
+                  (typeof chunk.content !== 'object' || Object.keys(chunk.content).length > 0)
                 ) {
                   const jsonBlock = getJsonMarkdown(chunk?.content)
 

@@ -1,0 +1,16 @@
+.git
+.github
+.venv
+.pytest_cache
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+logs/
+output/
+*.db
+sessions.db
+agentui/
+.DS_Store
+.env
+.env.*
