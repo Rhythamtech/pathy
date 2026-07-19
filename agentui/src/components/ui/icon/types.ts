@@ -39,6 +39,10 @@ export type IconType =
   | 'menu'
   | 'moon'
   | 'sun'
+  | 'copy'
+  | 'file-text'
+
+
 
 export interface IconProps {
   type: IconType

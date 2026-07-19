@@ -42,3 +42,31 @@ export const getJsonMarkdown = (content: object = {}) => {
 
   return jsonBlock
 }
+
+export function stripMarkdown(markdown: string): string {
+  if (!markdown) return ''
+  return markdown
+    // Remove code blocks
+    .replace(/```[a-z]*\n([\s\S]*?)\n```/g, '$1')
+    // Remove headers
+    .replace(/^#+\s+/gm, '')
+    // Remove bold/italic formatting
+    .replace(/(\*\*|__)(.*?)\1/g, '$2')
+    .replace(/(\*|_)(.*?)\1/g, '$2')
+    // Remove links [text](url) -> text
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    // Remove inline code
+    .replace(/`([^`]+)`/g, '$1')
+    // Remove horizontal rules
+    .replace(/^\s*[-*_]{3,}\s*$/gm, '')
+    // Remove list markers
+    .replace(/^\s*[-*+]\s+/gm, '')
+    // Remove numbered list markers
+    .replace(/^\s*\d+\.\s+/gm, '')
+    // Remove blockquotes
+    .replace(/^\s*>\s+/gm, '')
+    // Clean up excessive newlines
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
