@@ -1,5 +1,9 @@
 version: '3.8'
 
+networks:
+  pathy-network:
+    driver: bridge
+
 services:
   backend:
     build:
@@ -16,13 +20,18 @@ services:
       - PORT=7777
       - DEBUG=false
     restart: always
+    networks:
+      - pathy-network
 
   frontend:
     build:
       context: ./agentui
       dockerfile: Dockerfile
       args:
-        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:7777}
+        # IMPORTANT: This is a browser-side variable — set it to your server's PUBLIC IP or domain,
+        # NOT a Docker service name. The browser (user's machine) must be able to reach this URL.
+        # Example: NEXT_PUBLIC_API_URL=http://88.214.211.111:7777
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:?NEXT_PUBLIC_API_URL must be set to your server public IP in .env}
     image: pathy-frontend:latest
     container_name: pathy-frontend
     ports:
@@ -30,4 +39,8 @@ services:
     environment:
       - PORT=3000
       - HOST=0.0.0.0
+    depends_on:
+      - backend
     restart: always
+    networks:
+      - pathy-network

@@ -1,5 +1,9 @@
 version: '3.8'
 
+networks:
+  pathy-network:
+    driver: bridge
+
 services:
   backend:
     build:
@@ -19,12 +23,15 @@ services:
       - .:/app
       - /app/.venv # Don't overwrite the container's virtual environment with host's
     restart: always
+    networks:
+      - pathy-network
 
   frontend:
     build:
       context: ./agentui
       dockerfile: Dockerfile
       args:
+        # In dev, defaults to localhost:7777 (both running on same machine)
         - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:7777}
     image: pathy-frontend-dev:latest
     # Overwrite production command to use dev server for hot reloading
@@ -39,4 +46,8 @@ services:
       - ./agentui:/app
       - /app/node_modules # Don't overwrite container's node_modules with host's
       - /app/.next # Don't overwrite container's build folder
+    depends_on:
+      - backend
     restart: always
+    networks:
+      - pathy-network
