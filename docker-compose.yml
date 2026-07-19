@@ -11,8 +11,8 @@ services:
       dockerfile: Dockerfile
     image: pathy-backend:latest
     container_name: pathy-backend
-    ports:
-      - "${BACKEND_HOST_PORT:-7777}:7777"
+    # ports:
+    #   - "${BACKEND_HOST_PORT:-7777}:7777"
     env_file:
       - .env
     environment:
@@ -34,8 +34,8 @@ services:
         - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:?NEXT_PUBLIC_API_URL must be set to your server public IP in .env}
     image: pathy-frontend:latest
     container_name: pathy-frontend
-    ports:
-      - "${FRONTEND_HOST_PORT:-3000}:3000"
+    # ports:
+    #   - "${FRONTEND_HOST_PORT:-3000}:3000"
     environment:
       - PORT=3000
       - HOSTNAME=0.0.0.0
