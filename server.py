@@ -119,12 +119,33 @@ async def set_config(payload: ConfigPayload):
         )
         
     set_runtime_config(api_key, base_url, model_name)
+    
+    # Sync global roadmap_agent model attributes to update AgentOS immediately
+    global roadmap_agent
+    if "roadmap_agent" in globals():
+        from agno.models.openai.like import OpenAILike
+        if roadmap_agent.model and isinstance(roadmap_agent.model, OpenAILike):
+            roadmap_agent.model.id = model_name or ""
+            roadmap_agent.model.api_key = api_key or ""
+            roadmap_agent.model.base_url = base_url or ""
+            
     return {"status": "success", "message": "Credentials validated and saved successfully."}
 
 @app.delete("/api/config")
 async def clear_config():
     """Clear runtime config overrides and revert to env defaults."""
     clear_runtime_config()
+    
+    # Sync global roadmap_agent model attributes to revert to default
+    global roadmap_agent
+    if "roadmap_agent" in globals():
+        from agno.models.openai.like import OpenAILike
+        if roadmap_agent.model and isinstance(roadmap_agent.model, OpenAILike):
+            cfg = get_runtime_config()
+            roadmap_agent.model.id = cfg["OPENAI_MODEL_NAME"] or ""
+            roadmap_agent.model.api_key = cfg["OPENAI_API_KEY"] or ""
+            roadmap_agent.model.base_url = cfg["OPENAI_BASE_URL"] or ""
+            
     return {"status": "success", "message": "Runtime config cleared, reverted to env defaults."}
 
 @app.post("/api/generate")
@@ -375,11 +396,35 @@ from agno.db.sqlite import SqliteDb
 roadmap_agent = build_agent(
     name="pathy-roadmap-agent",
     instructions=[
-        "You are Pathy, a friendly learning assistant that helps users build custom, personalized week-by-week roadmaps.",
-        "Your primary capability is generating custom roadmaps using the `generate_learning_roadmap` tool.",
-        "When the user asks for a roadmap or wants to learn something, ask clarifying questions if they haven't provided details like their current level, target outcome, weekly hours, or language preference.",
-        "If you have enough details, invoke the `generate_learning_roadmap` tool with the user's requirements.",
-        "Once the tool returns the markdown roadmap, display the entire roadmap to the user. Do not shorten or truncate it.",
+        "You are Pathy, a friendly learning assistant that helps users build custom, personalized week-by-week learning roadmaps.",
+        "Your ONLY capability is generating roadmaps using the `generate_learning_roadmap` tool. Do not answer general knowledge questions.",
+        "INTAKE FLOW — follow these steps strictly and do not deviate:",
+        (
+            "STEP 1 — FIRST MESSAGE: When the user first greets you or mentions a topic without full details, "
+            "immediately present this structured intake form exactly once:\n"
+            "---\n"
+            "Hi! 👋 I'm Pathy. To build your perfect roadmap, I need a few quick details:\n\n"
+            "1. **Topic** – What do you want to learn? (e.g., FastAPI, Machine Learning, Go)\n"
+            "2. **Current level** – Beginner, Intermediate, or Advanced?\n"
+            "3. **Target outcome** – What's your goal? (e.g., build a production-ready app, pass an exam, switch careers)\n"
+            "4. **Weekly hours** – How many hours per week can you commit?\n"
+            "5. **Preferred language** – English, Hindi, Spanish, etc.?\n\n"
+            "Feel free to answer all at once!\n"
+            "---"
+        ),
+        (
+            "STEP 2 — EXTRACT: From the user's reply, extract the 5 fields: topic, current_level, target_outcome, weekly_hours, preferred_language. "
+            "Be liberal — infer reasonable defaults where possible (e.g., 'newbie' → 'beginner', '5hr' → 5, 'English' → 'English'). "
+            "If a field is clearly present, do NOT ask for it again."
+        ),
+        (
+            "STEP 3 — ONE FOLLOW-UP ONLY: If any fields are still missing after extraction, ask for ALL missing fields "
+            "in a single, concise message. List only the missing ones. Do NOT re-ask for fields already provided. "
+            "Do NOT ask for sub-details or elaboration (e.g., do not ask what kind of backend app). "
+            "Accept any reasonable answer and move on."
+        ),
+        "STEP 4 — RUN TOOL: As soon as all 5 fields are collected, immediately call `generate_learning_roadmap` with the extracted values. Do not ask for confirmation.",
+        "STEP 5 — DISPLAY: Once the tool returns the roadmap markdown, display it in full to the user. Do not shorten or truncate it."
     ],
     tools=[generate_learning_roadmap],
     db=SqliteDb(db_file="sessions.db"),
