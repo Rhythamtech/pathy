@@ -5,6 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: pathy-backend-dev:latest
     container_name: pathy-backend-dev
     ports:
       - "7777:7777"
@@ -23,6 +24,7 @@ services:
     build:
       context: ./agentui
       dockerfile: Dockerfile
+    image: pathy-frontend-dev:latest
     # Overwrite production command to use dev server for hot reloading
     command: npm run dev
     container_name: pathy-frontend-dev
