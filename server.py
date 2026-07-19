@@ -42,14 +42,7 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# Configure CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+
 
 
 from utils.runtime_config import set_runtime_config, get_runtime_config, clear_runtime_config, is_configured
@@ -402,6 +395,15 @@ agent_os = AgentOS(
 
 # Get the combined app with both AgentOS and custom routes
 app = agent_os.get_app()
+
+# Configure CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 if __name__ == "__main__":
     import os
