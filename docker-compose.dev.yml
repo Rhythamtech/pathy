@@ -41,7 +41,7 @@ services:
       - "3001:3000"
     environment:
       - PORT=3000
-      - HOST=0.0.0.0
+      - HOSTNAME=0.0.0.0
     volumes:
       - ./agentui:/app
       - /app/node_modules # Don't overwrite container's node_modules with host's
